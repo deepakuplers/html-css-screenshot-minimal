@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML & CSS Screenshot Generator - Puppeteer</title>
+    <title>HTML & CSS Screenshot Generator</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -183,6 +184,12 @@
             box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
         }
 
+        .btn-next {
+            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(237, 137, 54, 0.3);
+        }
+
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
@@ -229,6 +236,15 @@
 
         .generated-image.show {
             display: block;
+        }
+
+        .preview-frame {
+            position: absolute;
+            left: -9999px;
+            width: 1200px;
+            height: 800px;
+            border: none;
+            background: white;
         }
 
         .stats {
@@ -357,8 +373,8 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1><i class="fas fa-camera-retro"></i> HTML & CSS Screenshot Generator <span class="badge">Puppeteer</span></h1>
-            <p>Generate pixel-perfect screenshots from your HTML & CSS code instantly</p>
+            <h1><i class="fas fa-camera-retro"></i> HTML & CSS Screenshot Generator <span class="badge">Client-Side</span></h1>
+            <p>Generate high-quality screenshots from your HTML & CSS code - No server required!</p>
         </header>
 
         <div class="main-grid">
@@ -370,13 +386,6 @@
                 </div>
 
                 <div class="options">
-                    <div class="option-group">
-                        <label for="format">Format:</label>
-                        <select id="format">
-                            <option value="png">PNG</option>
-                            <option value="jpeg">JPEG</option>
-                        </select>
-                    </div>
                     <div class="option-group">
                         <label for="width">Width:</label>
                         <input type="number" id="width" value="1200" min="100" max="4000">
@@ -391,6 +400,14 @@
                             <option value="1">1x</option>
                             <option value="2" selected>2x</option>
                             <option value="3">3x</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <label for="quality">Quality:</label>
+                        <select id="quality">
+                            <option value="0.7">Good</option>
+                            <option value="0.9" selected>High</option>
+                            <option value="1.0">Best</option>
                         </select>
                     </div>
                 </div>
@@ -431,6 +448,7 @@
             background: linear-gradient(135deg, #667eea, #764ba2);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-clip: text;
             font-weight: bold;
         }
     </style>
@@ -446,6 +464,11 @@
                 <button id="generateBtn" class="btn btn-primary">
                     <i class="fas fa-magic"></i>
                     Generate Screenshot
+                </button>
+
+                <button id="nextBtn" class="btn btn-next" style="display:none;">
+                    <i class="fas fa-forward"></i>
+                    Next Screenshot
                 </button>
 
                 <div class="stats">
@@ -478,8 +501,9 @@
                 <div id="outputContainer" class="output-container">
                     <div class="placeholder" id="placeholder">
                         <i class="fas fa-camera"></i>
-                        <h3>Your pixel-perfect screenshot will appear here</h3>
-                        <p>Click "Generate Screenshot" to create a high-quality image</p>
+                        <h3>Your screenshot will appear here</h3>
+                        <p>Click "Generate Screenshot" to create a high-quality image from your HTML & CSS code</p>
+                        <small>Works entirely in your browser - no server required!</small>
                     </div>
                     <img id="generatedImage" class="generated-image" alt="Generated Screenshot">
                 </div>
@@ -492,9 +516,12 @@
         </div>
 
         <footer class="footer">
-            <p>&copy; 2024 Uplers/Mavlers • Powered by Puppeteer • Made with ❤️</p>
+            <p>&copy; 2024 HTML & CSS Screenshot Generator • Client-Side • No Server Required • Made with ❤️</p>
         </footer>
     </div>
+
+    <!-- Hidden iframe for rendering -->
+    <iframe id="previewFrame" class="preview-frame"></iframe>
 
     <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
@@ -503,8 +530,8 @@
     <div id="loadingOverlay" class="loading-overlay">
         <div class="loading-content">
             <div class="spinner"></div>
-            <h3>Generating Pixel-Perfect Screenshot...</h3>
-            <p id="loadingText">Launching Puppeteer browser...</p>
+            <h3>Generating Screenshot...</h3>
+            <p id="loadingText">Processing your HTML & CSS...</p>
         </div>
     </div>
 
@@ -519,13 +546,15 @@
                     codeInput: document.getElementById('codeInput'),
                     generateBtn: document.getElementById('generateBtn'),
                     downloadBtn: document.getElementById('downloadBtn'),
+                    nextBtn: document.getElementById('nextBtn'),
                     outputContainer: document.getElementById('outputContainer'),
                     placeholder: document.getElementById('placeholder'),
                     generatedImage: document.getElementById('generatedImage'),
-                    format: document.getElementById('format'),
+                    previewFrame: document.getElementById('previewFrame'),
                     width: document.getElementById('width'),
                     height: document.getElementById('height'),
                     scale: document.getElementById('scale'),
+                    quality: document.getElementById('quality'),
                     stats: {
                         totalGenerated: document.getElementById('totalGenerated'),
                         codeLines: document.getElementById('codeLines'),
@@ -554,12 +583,21 @@
                 
                 this.elements.generateBtn.addEventListener('click', () => this.generateScreenshot());
                 this.elements.downloadBtn.addEventListener('click', () => this.downloadImage());
+                this.elements.nextBtn.addEventListener('click', () => this.prepareNext());
                 
                 // Keyboard shortcuts
                 document.addEventListener('keydown', (e) => {
                     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                         e.preventDefault();
-                        this.generateScreenshot();
+                        if (!this.isGenerating) {
+                            this.generateScreenshot();
+                        }
+                    }
+                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                        e.preventDefault();
+                        if (this.currentImageUrl) {
+                            this.downloadImage();
+                        }
                     }
                 });
             }
@@ -584,15 +622,35 @@
 
             showLoading() {
                 this.elements.loadingOverlay.classList.add('show');
-                this.updateLoadingText('Launching Puppeteer browser...');
+                document.body.style.overflow = 'hidden';
             }
 
             hideLoading() {
                 this.elements.loadingOverlay.classList.remove('show');
+                document.body.style.overflow = '';
             }
 
             updateLoadingText(text) {
                 this.elements.loadingText.textContent = text;
+            }
+
+            prepareNext() {
+                this.clearPreviousScreenshot();
+                this.elements.codeInput.focus();
+                this.showToast('Ready for your next screenshot!');
+            }
+
+            clearPreviousScreenshot() {
+                this.elements.placeholder.style.display = 'block';
+                this.elements.generatedImage.classList.remove('show');
+                this.elements.outputContainer.classList.remove('has-image');
+                this.elements.downloadBtn.style.display = 'none';
+                this.elements.nextBtn.style.display = 'none';
+                
+                if (this.currentImageUrl) {
+                    URL.revokeObjectURL(this.currentImageUrl);
+                    this.currentImageUrl = null;
+                }
             }
 
             async generateScreenshot() {
@@ -609,55 +667,54 @@
                 this.elements.generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
                 
                 this.showLoading();
+                this.updateLoadingText('Rendering HTML & CSS...');
                 
                 try {
                     const startTime = performance.now();
                     
-                    const payload = {
-                        code: code,
-                        options: {
-                            width: parseInt(this.elements.width.value) || 1200,
-                            height: parseInt(this.elements.height.value) || 800,
-                            scale: parseFloat(this.elements.scale.value) || 2,
-                            format: this.elements.format.value || 'png',
-                            quality: 90,
-                            fullPage: true
-                        }
-                    };
-
-                    this.updateLoadingText('Rendering HTML/CSS...');
+                    // Configure iframe
+                    const width = parseInt(this.elements.width.value) || 1200;
+                    const height = parseInt(this.elements.height.value) || 800;
+                    const scale = parseFloat(this.elements.scale.value) || 2;
+                    const quality = parseFloat(this.elements.quality.value) || 0.9;
                     
-                    const response = await fetch('/api/screenshot', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(payload)
+                    this.elements.previewFrame.style.width = width + 'px';
+                    this.elements.previewFrame.style.height = height + 'px';
+                    
+                    // Write content to iframe
+                    const frameDoc = this.elements.previewFrame.contentDocument || 
+                                    this.elements.previewFrame.contentWindow.document;
+                    frameDoc.open();
+                    frameDoc.write(code);
+                    frameDoc.close();
+
+                    // Wait for content to load
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    this.updateLoadingText('Capturing screenshot...');
+                    
+                    // Generate screenshot using html2canvas
+                    const canvas = await html2canvas(frameDoc.body, {
+                        width: width,
+                        height: height,
+                        useCORS: true,
+                        allowTaint: true,
+                        scale: scale,
+                        backgroundColor: '#ffffff',
+                        logging: false,
+                        removeContainer: false
                     });
 
-                    this.updateLoadingText('Capturing screenshot...');
-
-                    if (!response.ok) {
-                        let errorMessage = `Server error: ${response.status}`;
-                        try {
-                            const errorData = await response.json();
-                            errorMessage = errorData.message || errorMessage;
-                        } catch (e) {
-                            errorMessage = response.statusText || errorMessage;
-                        }
-                        throw new Error(errorMessage);
-                    }
-
-                    const contentType = response.headers.get('content-type');
-                    if (!contentType || !contentType.startsWith('image/')) {
-                        throw new Error('Invalid response format');
-                    }
-
                     this.updateLoadingText('Processing image...');
-
-                    const imageBlob = await response.blob();
-                    const imageUrl = URL.createObjectURL(imageBlob);
-
+                    
+                    // Convert to blob
+                    const blob = await new Promise(resolve => {
+                        canvas.toBlob(resolve, 'image/png', quality);
+                    });
+                    
+                    const imageUrl = URL.createObjectURL(blob);
+                    
+                    // Display screenshot
                     this.displayScreenshot(imageUrl);
                     
                     const endTime = performance.now();
@@ -672,13 +729,7 @@
 
                 } catch (error) {
                     console.error('Error:', error);
-                    let errorMessage = error.message;
-                    
-                    if (error.message.includes('Failed to fetch')) {
-                        errorMessage = 'API not available. Please deploy to Vercel to test screenshot functionality.';
-                    }
-                    
-                    this.showToast(errorMessage, 'error');
+                    this.showToast('Failed to generate screenshot. Please check your HTML/CSS code.', 'error');
                 } finally {
                     this.isGenerating = false;
                     this.elements.generateBtn.disabled = false;
@@ -699,6 +750,7 @@
                 this.elements.generatedImage.classList.add('show');
                 this.elements.outputContainer.classList.add('has-image');
                 this.elements.downloadBtn.style.display = 'block';
+                this.elements.nextBtn.style.display = 'block';
             }
 
             downloadImage() {
@@ -709,7 +761,7 @@
 
                 const link = document.createElement('a');
                 link.href = this.currentImageUrl;
-                link.download = `screenshot-${Date.now()}.${this.elements.format.value}`;
+                link.download = `html-css-screenshot-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
                 link.click();
                 
                 this.showToast('Screenshot downloaded successfully!');
@@ -720,6 +772,12 @@
                     localStorage.setItem('screenshotApp', JSON.stringify({
                         code: this.elements.codeInput.value,
                         totalGenerated: this.totalGenerated,
+                        settings: {
+                            width: this.elements.width.value,
+                            height: this.elements.height.value,
+                            scale: this.elements.scale.value,
+                            quality: this.elements.quality.value
+                        },
                         timestamp: Date.now()
                     }));
                 } catch (e) {}
@@ -732,6 +790,12 @@
                         const data = JSON.parse(saved);
                         if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
                             this.totalGenerated = data.totalGenerated || 0;
+                            if (data.settings) {
+                                this.elements.width.value = data.settings.width || 1200;
+                                this.elements.height.value = data.settings.height || 800;
+                                this.elements.scale.value = data.settings.scale || 2;
+                                this.elements.quality.value = data.settings.quality || 0.9;
+                            }
                             this.updateStats();
                         }
                     }
@@ -742,6 +806,7 @@
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', () => {
             new ScreenshotGenerator();
+            console.log('HTML & CSS Screenshot Generator loaded successfully!');
         });
     </script>
 </body>
