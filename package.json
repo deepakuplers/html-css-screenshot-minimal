@@ -1,0 +1,18 @@
+{
+    "name": "html-css-screenshot-minimal",
+    "version": "1.0.0",
+    "description": "Minimal HTML & CSS Screenshot Generator with Puppeteer",
+    "main": "index.html",
+    "type": "module",
+    "scripts": {
+      "dev": "python -m http.server 3000",
+      "deploy": "vercel --prod"
+    },
+    "dependencies": {
+      "chrome-aws-lambda": "^10.1.0",
+      "puppeteer-core": "^10.1.0"
+    },
+    "engines": {
+      "node": ">=18.0.0"
+    }
+  }
