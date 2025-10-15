@@ -410,6 +410,13 @@
                             <option value="1.0">Best</option>
                         </select>
                     </div>
+                    <div class="option-group">
+                        <label for="fullPage">Capture:</label>
+                        <select id="fullPage">
+                            <option value="false">Fixed Size</option>
+                            <option value="true" selected>Full Page</option>
+                        </select>
+                    </div>
                 </div>
 
                 <textarea id="codeInput" class="code-input" placeholder="Paste your HTML & CSS code here..."><!DOCTYPE html>
@@ -555,6 +562,7 @@
                     height: document.getElementById('height'),
                     scale: document.getElementById('scale'),
                     quality: document.getElementById('quality'),
+                    fullPage: document.getElementById('fullPage'),
                     stats: {
                         totalGenerated: document.getElementById('totalGenerated'),
                         codeLines: document.getElementById('codeLines'),
@@ -677,9 +685,10 @@
                     const height = parseInt(this.elements.height.value) || 800;
                     const scale = parseFloat(this.elements.scale.value) || 2;
                     const quality = parseFloat(this.elements.quality.value) || 0.9;
+                    const isFullPage = this.elements.fullPage.value === 'true';
                     
                     this.elements.previewFrame.style.width = width + 'px';
-                    this.elements.previewFrame.style.height = height + 'px';
+                    this.elements.previewFrame.style.height = isFullPage ? 'auto' : height + 'px';
                     
                     // Write content to iframe
                     const frameDoc = this.elements.previewFrame.contentDocument || 
@@ -693,17 +702,28 @@
                     
                     this.updateLoadingText('Capturing screenshot...');
                     
-                    // Generate screenshot using html2canvas
-                    const canvas = await html2canvas(frameDoc.body, {
-                        width: width,
-                        height: height,
+                    // Configure html2canvas options based on full page setting
+                    const canvasOptions = {
                         useCORS: true,
                         allowTaint: true,
                         scale: scale,
                         backgroundColor: '#ffffff',
                         logging: false,
                         removeContainer: false
-                    });
+                    };
+
+                    if (isFullPage) {
+                        // Full page capture - let html2canvas determine height
+                        canvasOptions.width = width;
+                        // Don't set height for full page
+                    } else {
+                        // Fixed size capture
+                        canvasOptions.width = width;
+                        canvasOptions.height = height;
+                    }
+                    
+                    // Generate screenshot using html2canvas
+                    const canvas = await html2canvas(frameDoc.body, canvasOptions);
 
                     this.updateLoadingText('Processing image...');
                     
@@ -776,7 +796,8 @@
                             width: this.elements.width.value,
                             height: this.elements.height.value,
                             scale: this.elements.scale.value,
-                            quality: this.elements.quality.value
+                            quality: this.elements.quality.value,
+                            fullPage: this.elements.fullPage.value
                         },
                         timestamp: Date.now()
                     }));
@@ -795,6 +816,7 @@
                                 this.elements.height.value = data.settings.height || 800;
                                 this.elements.scale.value = data.settings.scale || 2;
                                 this.elements.quality.value = data.settings.quality || 0.9;
+                                this.elements.fullPage.value = data.settings.fullPage || 'true';
                             }
                             this.updateStats();
                         }
