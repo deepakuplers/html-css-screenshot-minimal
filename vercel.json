@@ -1,7 +1,0 @@
-{
-    "functions": {
-      "api/screenshot.js": {
-        "maxDuration": 30
-      }
-    }
-  }
